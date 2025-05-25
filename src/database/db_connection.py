@@ -1,4 +1,5 @@
-import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.sql import text
 
 class Database:
     _instance = None
@@ -6,15 +7,20 @@ class Database:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(Database, cls).__new__(cls)
-            cls._instance.conn = sqlite3.connect('../data/database/ecommerce.db')
-            cls._instance.conn.row_factory = sqlite3.Row  # Enable row access by column name
-            cls._instance.cursor = cls._instance.conn.cursor()
+            # PostgreSQL connection string
+            cls._instance.engine = create_engine(
+                'postgresql+psycopg2://postgres:admin%40123@localhost:5432/ecommerce'
+            )
+            cls._instance.conn = cls._instance.engine.connect()
         return cls._instance
 
-    def execute_query(self, query, params=()):
-        self.cursor.execute(query, params)
-        self.conn.commit()
-        return self.cursor.fetchall()
+    def execute_query(self, query, params=None):
+        with self.conn.begin():
+            result = self.conn.execute(text(query), params or {})
+            if result.returns_rows:
+                return result.fetchall()
+            return []
 
     def close(self):
         self.conn.close()
+        self.engine.dispose()
